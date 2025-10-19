@@ -6,7 +6,7 @@ COMMENT !
 !
 
 ; COAL Lab Project
-; Rayyan Aamir | Usaid Khan | Syed M. Furqan
+; Rayyan Aamir | Usaid Khan | Syed Muhammad Furqan
 
 INCLUDE Irvine32.inc
 
