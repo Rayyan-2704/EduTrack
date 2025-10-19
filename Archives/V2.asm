@@ -208,7 +208,7 @@ equal:
 not_equal:
 	mov eax, 1
 	ret
-stringCompare ENDP
+StringCompare ENDP
 
 
 CreateNewAccount PROC
