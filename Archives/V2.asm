@@ -2,7 +2,7 @@ COMMENT !
 	Project Progress:
 		Admin Menu - Done
 		Sign In - Done
-		Create New Account - Done   +  Additional Helper functions like StringCompare, AddStringToArray, CheckPasswordLength etc
+		Create New Account - Done   +  Additional Helper functions like StringCompare, AddStringToArray, CheckPasswordLength etc 
 !
 
 ; COAL Lab Project
