@@ -637,23 +637,27 @@ AddStudent ENDP
 SearchStudent PROC
     call Clrscr
     call CRLF
+
     mov edx, OFFSET enterRollMsg
     call WriteString
     call ReadInt
-    mov ebx, eax       ; search roll
+    mov ebx, eax               ; EBX = searched roll
 
     mov ecx, studentCount
-    cmp ecx,0
+    cmp ecx, 0
     je search_notfound
 
-    mov esi, OFFSET studentRolls
-search_roll_loop:
-    mov eax, [esi]
+    mov edi, OFFSET studentRolls
+    xor esi, esi               ; ESI = index counter (0..n-1)
+
+find_roll_loop:
+    mov eax, [edi]
     cmp eax, ebx
-    je search_found
-    add esi, 4
+    je roll_found
+    add edi, 4
+    inc esi
     dec ecx
-    jne search_roll_loop
+    jne find_roll_loop
 
 search_notfound:
     mov edx, OFFSET notFoundMsg
@@ -662,96 +666,77 @@ search_notfound:
     call WaitMsg
     ret
 
-search_found:
-    ; compute index from pointer
-    ; index = (esi - OFFSET studentRolls) / 4
-    mov edi, esi
-    sub edi, OFFSET studentRolls
-    mov eax, edi
-    sar eax, 2
-    ; eax = index
+roll_found:
+    ; ESI contains index of the found student
 
-    ; display student name
+    ; --- Locate name at index ---
     mov ebx, OFFSET studentNames
-    ; walk names to the index
-    mov ecx, eax
-    cmp ecx,0
-    je show_name_at_zero
-walk_name_idx:
-    ; skip name
-skip_loop_s:
-    cmp BYTE PTR [ebx],0
+    mov ecx, esi              ; number of names to skip
+    cmp ecx, 0
+    je name_at_zero
+skip_name_loop:
+    ; skip current name (walk to its terminating 0)
+skip_name_char:
+    cmp BYTE PTR [ebx], 0
     je start_next_name
     inc ebx
-    jmp skip_loop_s
+    jmp skip_name_char
 start_next_name:
-    inc ebx
+    inc ebx                  ; move to start of next name
     dec ecx
-    jne walk_name_idx
+    jne skip_name_loop
 
-show_name_at_zero:
+name_at_zero:
+    ; EBX now points to the student's name
     mov edx, OFFSET nameMsg
     call WriteString
     mov edx, ebx
     call WriteString
     call CRLF
 
-    ; display roll
+    ; --- Display Roll ---
     mov edx, OFFSET IDMsg
     call WriteString
-    mov eax, [esi]
+    ; Need the roll value: compute pointer to the found roll DWORD
+    ; (we already had edi pointing at the matched roll in find_roll_loop)
+    ; But edi may have changed; recompute pointer by walking rolls up to index:
+    mov edi, OFFSET studentRolls
+    mov ecx, esi
+walk_rolls_to_index:
+    cmp ecx, 0
+    je roll_pointer_ready
+    add edi, 4
+    dec ecx
+    jmp walk_rolls_to_index
+roll_pointer_ready:
+    mov eax, [edi]
     call WriteDec
     call CRLF
 
-    ; display GPAs
-    mov edx, OFFSET studentGPAs
-    mov ecx, eax
-    ; compute gpa base: (index * 40) bytes
-    mov eax, edi
-    sar eax, 2      ; recall edi -(studentRolls) then /4 -> but edi was already used; recompute index differently
-    ; better: recompute index as (esi - studentRolls)/4 stored earlier in eax; we've overwritten eax, so recompute correctly:
-    ; Let's recompute using pointer math again carefully
-    mov esi, OFFSET studentRolls
-    mov ebx, eax   ; temporarily hold previous index? (we lost). To keep correct control flow, we'll re-walk to find index using a counter
+    ; --- Display GPAs ---
+    ; Compute GPA base address = OFFSET studentGPAs + index * 40
+    mov eax, esi              ; eax = index
+    imul eax, 40              ; eax = index * 40
+    add eax, OFFSET studentGPAs
+    mov ebx, eax              ; EBX = pointer to first GPA (5 bytes each)
 
-    ; simpler: find matching roll again but count index
-    mov ebx, [inputRoll]
-    ; re-run loop to find index
-    ; (for brevity, we'll re-search and count index)
-    mov ecx, studentCount
-    mov edi, OFFSET studentRolls
-    xor esi, esi    ; index counter
-find_index_count_loop:
-    mov eax, [edi]
-    cmp eax, ebx
-    je index_found_cnt
-    add edi,4
-    inc esi
-    dec ecx
-    jne find_index_count_loop
-index_found_cnt:
-    mov eax, esi    ; eax = index
-
-    ; compute gpa base
-    mov ebx, OFFSET studentGPAs
-    mov edx, 40
-    mul edx          ; eax * 40
-    add ebx, eax
-
-    ; now ebx points to student's first GPA (5 bytes each)
-    mov ecx, 8
-    mov esi, ebx
+    mov ecx, 8                ; 8 semesters
+    mov esi, ebx              ; ESI = pointer used for printing GPAs
 show_gpa_loop:
     mov edx, OFFSET semesterMsg
     call WriteString
+    ; compute semester number: (9 - ecx)  gives 1..8 as loop runs
     mov eax, 9
     sub eax, ecx
     call WriteDec
+
     mov edx, OFFSET GPAMsg
     call WriteString
+
     mov edx, esi
     call WriteString
-    add esi,5
+
+    add esi, 5                ; move to next GPA (fixed 5 bytes per GPA)
     call CRLF
     loop show_gpa_loop
 
