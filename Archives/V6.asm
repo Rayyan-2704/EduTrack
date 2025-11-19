@@ -475,6 +475,7 @@ ViewStudents ENDP
 
 ; ------------------ Add Student ------------------
 ; Option A chosen: manual entry of all 8 GPAs
+
 AddStudent PROC
     call Clrscr
     mov edx, OFFSET addStudentMsg
