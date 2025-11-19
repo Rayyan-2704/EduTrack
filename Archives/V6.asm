@@ -80,6 +80,8 @@ INCLUDE Irvine32.inc
         ; Buffers for Sign-In/Create New Account input
         inputUsername BYTE 20 DUP(?)
         inputPassword BYTE 20 DUP(?)
+    
+        gpaErrorMsg BYTE "Error: GPA must be between 0.00 and 4.00! Please re-enter.",0
 
         ; Buffers for Student Input
         inputName BYTE 80 DUP(?)
@@ -822,8 +824,8 @@ update_notfound:
     ret
 
 update_found:
-    ; ESI contains the student index
-    mov inputRoll, ebx              ; Store roll for later use
+    ; ESI contains the student index - store it safely
+    push esi                        ; Save student index
     
     ; --- Update Name ---
     mov edx, OFFSET enterNameMsg
@@ -834,9 +836,11 @@ update_found:
 
     ; Find the name position for this student
     mov edi, OFFSET studentNames
-    mov ecx, esi
+    pop ecx                         ; Restore student index to ECX
+    push ecx                        ; Save it again
     cmp ecx, 0
     je update_name_position_found
+    
 skip_names_update:
     ; Skip to next name
 skip_name_chars:
@@ -868,16 +872,16 @@ copy_new_name:
     
     ; Read 8 new GPAs with validation
     mov esi, OFFSET inputGPA        ; temp buffer for input GPAs
-    mov ecx, 8                      ; semester counter
+    mov ecx, 1                      ; semester counter (start from 1)
 
 read_gpa_update_loop:
     push ecx                        ; save semester counter
+    push esi                        ; save current GPA buffer position
     
 update_gpa_validation:
     mov edx, OFFSET enterGPAMsg
     call WriteString
-    mov eax, 9
-    sub eax, ecx                   ; semester number 1..8
+    mov eax, ecx                    ; semester number 1..8
     call WriteDec
     mov edx, OFFSET enterGPASuffix
     call WriteString
@@ -891,7 +895,7 @@ update_gpa_validation:
     cmp eax, 1
     je update_gpa_valid
     
-    ; GPA invalid - show error and retry
+    ; GPA invalid - show error and retry CURRENT semester
     call CRLF
     mov edx, OFFSET gpaErrorMsg
     call WriteString
@@ -899,13 +903,19 @@ update_gpa_validation:
     jmp update_gpa_validation
     
 update_gpa_valid:
-    add esi, 6                     ; move to next GPA buffer (6 bytes each)
+    pop esi                        ; restore GPA buffer position
     pop ecx                        ; restore semester counter
-    loop read_gpa_update_loop
+    
+    add esi, 6                     ; move to next GPA buffer (6 bytes each)
+    inc ecx                        ; move to next semester
+    cmp ecx, 9                     ; check if we've done 8 semesters (1-8)
+    jl read_gpa_update_loop        ; continue if less than 9
 
     ; --- Copy GPAs to main array ---
+    pop eax                         ; Restore student index to EAX
+    push eax                        ; Save it again for safety
+    
     ; Calculate destination GPA address: studentGPAs + index * 40
-    mov eax, esi                   ; ESI still has the student index
     mov ebx, 40
     mul ebx                        ; EAX = index * 40
     mov edi, OFFSET studentGPAs
@@ -932,6 +942,8 @@ copy_gpa_bytes:
     pop ecx
     loop copy_gpas_update
 
+    pop eax                         ; Clean up stack
+
     ; Show success message
     call CRLF
     mov edx, OFFSET updateSuccessMsg
@@ -940,6 +952,7 @@ copy_gpa_bytes:
     call WaitMsg
     ret
 UpdateStudent ENDP
+    
 
 
 
