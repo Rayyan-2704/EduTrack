@@ -474,164 +474,118 @@ ViewStudents ENDP
 
 
 ; ------------------ Add Student ------------------
-; Option A chosen: manual entry of all 8 GPAs
-
+; Option A chosen: manual entry of aludentMsg
 AddStudent PROC
     call Clrscr
     mov edx, OFFSET addStudentMsg
     call WriteString
     call CRLF
 
-    ; Read Name
+    ; ----- Read Name -----
     mov edx, OFFSET enterNameMsg
     call WriteString
     mov edx, OFFSET inputName
     mov ecx, LENGTHOF inputName
     call ReadString
 
-    ; Read Roll
+    ; ----- Read Roll -----
     mov edx, OFFSET enterRollMsg
     call WriteString
     call ReadInt
     mov [inputRoll], eax
 
-    ; Read 8 GPAs (one by one)
-    mov ecx, 8
-    mov ebx, OFFSET inputGPA  ; temporary buffer for GPAs
-    xor esi, esi              ; gpa index
+    ; ----- Read 8 GPAs ONLY -----
+    mov esi, OFFSET inputGPA    ; temp buffer for input GPAs
+    xor ecx, ecx                ; semester counter
+
 read_gpa_loop:
+    cmp ecx, 8
+    je done_read_gpa
+
     mov edx, OFFSET enterGPAMsg
     call WriteString
-    mov eax, esi
-    inc eax
+    mov eax, ecx
+    inc eax                     ; semester number 1..8
     call WriteDec
     mov edx, OFFSET enterGPASuffix
     call WriteString
 
-    mov edx, ebx
-    mov ecx, 6
+    mov edx, esi                ; buffer for this GPA
+    mov ecx, 6                  ; max chars for input including null
     call ReadString
 
-    ; ensure null terminated and store as 4 chars + 0
-    ; normalize to exactly 4 chars (e.g. "3.50") then 0
-    ; for simplicity store whatever user entered with its null
+    add esi, 6                  ; move to next GPA buffer
+    inc ecx
+    jmp read_gpa_loop
 
-    add ebx, 6
-    inc esi
-    loop read_gpa_loop
+done_read_gpa:
 
-    ; Now append name to studentNames list at end
+    ; ----- Append Name -----
     mov eax, studentCount
-    mov esi, OFFSET studentNames
-    ; iterate to end by skipping existing names
+    mov edi, OFFSET studentNames
     mov ecx, eax
     cmp ecx, 0
     je name_insert_point
 skip_names_loop:
-    ; skip current name
-skip_char_loop:
-    cmp BYTE PTR [esi], 0
+    cmp BYTE PTR [edi],0
     je next_name_start
-    inc esi
-    jmp skip_char_loop
+    inc edi
+    jmp skip_names_loop
 next_name_start:
-    inc esi
+    inc edi
     dec ecx
     jne skip_names_loop
 
 name_insert_point:
-    ; esi points to insertion point for name
-    mov edx, OFFSET inputName
+    mov esi, OFFSET inputName
 copy_name_loop:
-    mov al, [edx]
-    mov [esi], al
-    cmp al, 0
-    je name_copy_done
-    inc edx
+    mov al, [esi]
+    mov [edi], al
     inc esi
-    jmp copy_name_loop
-name_copy_done:
+    inc edi
+    cmp al, 0
+    jne copy_name_loop
 
-    ; Append roll at the end of studentRolls
+    ; ----- Append Roll -----
     mov eax, studentCount
-    mov ebx, OFFSET studentRolls
-    mov edx, 4
-    mul edx          ; eax = studentCount * 4
-    add ebx, eax
-    mov eax, [inputRoll]
-    mov [ebx], eax
+    mov [studentRolls + eax*4], [inputRoll]
 
-    ; Append GPAs block to studentGPAs area
-    ; Each student consumes 8 * 5 = 40 bytes (we reserved 5 bytes per GPA in existing layout)
+    ; ----- Append GPAs -----
     mov eax, studentCount
-    mov ebx, OFFSET studentGPAs
-    mov edx, 40
-    mul edx          ; eax = studentCount * 40
-    add ebx, eax     ; ebx points to insertion GPA base
+    mov edi, OFFSET studentGPAs
+    lea edi, [edi + eax*40]    ; each student occupies 8*5 = 40 bytes
 
-    ; copy from temporary inputGPA buffer (8 * 6 bytes) into compact 8*5 layout
     mov esi, OFFSET inputGPA
-    mov edi, ebx
     mov ecx, 8
 copy_gpa_store_loop:
-    ; copy up to 5 bytes or until null
     mov edx, 5
 copy_gpa_char_loop:
     mov al, [esi]
     mov [edi], al
     cmp al, 0
-    je gpa_char_done
+    je gpa_slot_done
     inc esi
     inc edi
     dec edx
     cmp edx, 0
     jne copy_gpa_char_loop
-    ; ensure null termination if exceeded
     mov BYTE PTR [edi], 0
     inc edi
-    ; skip remaining chars in input buffer until null
-    cmp BYTE PTR [esi], 0
-    je gpa_char_done
-skip_remain_input:
-    inc esi
-    cmp BYTE PTR [esi], 0
-    jne skip_remain_input
-    inc esi
-    jmp gpa_char_done
-
-gpa_char_done:
-    ; if we terminated early, ensure both pointers advanced to next 6-byte slot
-    ; move edi to next 5-byte slot already set; advance if needed
-    ; ensure edi always at next GPA slot
-    ; (edi already points to next position)
-    ; advance edi to next 5-byte boundary if we wrote fewer than 5 bytes
-    ; but to keep things simple, we will ensure edi at next slot by adding remaining
-    ; compute remaining space in this slot (handled implicitly by copying fixed 5 bytes in prior loop)
-    ; ensure esi is at next input slot (input buffer slots are 6 bytes)
-    ; move esi to next slot
-    ; we know input buffers are contiguous; each slot reserved 6 bytes
-    ; move esi to start of next slot
-    ; current esi points to either null of this slot or its terminator; move to next slot start
-    ; compute: add esi, (remaining) -> simpler: add esi,1 (since loops leave esi at terminator); then add remaining to reach boundary
-    inc esi ; move past null
-    ; now ensure esi is at next slot boundary (we reserved 6 bytes per slot)
-    ; move esi forward until we've advanced exactly 6 bytes from previous slot start; but we don't track start; to simplify, assume user entries fit and incrementing by 0 keeps safe
-
+gpa_slot_done:
+    add esi, 1                 ; move to next GPA slot (6 bytes total)
     dec ecx
     jne copy_gpa_store_loop
 
-    ; Increase studentCount
-    mov eax, studentCount
-    inc eax
-    mov studentCount, eax
+    ; ----- Increment student count -----
+    inc studentCount
 
-    call CRLF
     mov edx, OFFSET addSuccessMsg
     call WriteString
     call CRLF
     call WaitMsg
     ret
 AddStudent ENDP
+    
 
 
 ; ------------------ Search Student by Roll ------------------
