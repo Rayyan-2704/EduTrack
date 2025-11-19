@@ -492,49 +492,50 @@ AddStudent PROC
     mov edx, OFFSET enterRollMsg
     call WriteString
     call ReadInt
-    mov [inputRoll], eax
+    mov inputRoll, eax
 
-    ; ----- Read 8 GPAs ONLY -----
+    ; ----- Read 8 GPAs -----
     mov esi, OFFSET inputGPA    ; temp buffer for input GPAs
-    xor ecx, ecx                ; semester counter
+    mov ecx, 8                  ; semester counter
 
 read_gpa_loop:
-    cmp ecx, 8
-    je done_read_gpa
-
+    push ecx                    ; save semester counter
+    
     mov edx, OFFSET enterGPAMsg
     call WriteString
-    mov eax, ecx
-    inc eax                     ; semester number 1..8
+    mov eax, 9
+    sub eax, ecx               ; semester number 1..8
     call WriteDec
     mov edx, OFFSET enterGPASuffix
     call WriteString
 
-    mov edx, esi                ; buffer for this GPA
-    mov ecx, 6                  ; max chars for input including null
+    mov edx, esi               ; buffer for this GPA
+    mov ecx, 6                 ; max chars for input including null
     call ReadString
-
-    add esi, 6                  ; move to next GPA buffer
-    inc ecx
-    jmp read_gpa_loop
+    
+    add esi, 6                 ; move to next GPA buffer (6 bytes each)
+    
+    pop ecx                    ; restore semester counter
+    dec ecx
+    jnz read_gpa_loop
 
 done_read_gpa:
 
     ; ----- Append Name -----
-    mov eax, studentCount
     mov edi, OFFSET studentNames
-    mov ecx, eax
+    mov ecx, studentCount
     cmp ecx, 0
     je name_insert_point
+    
 skip_names_loop:
-    cmp BYTE PTR [edi],0
-    je next_name_start
+    cmp BYTE PTR [edi], 0
+    je found_null
     inc edi
     jmp skip_names_loop
-next_name_start:
+found_null:
     inc edi
     dec ecx
-    jne skip_names_loop
+    jnz skip_names_loop
 
 name_insert_point:
     mov esi, OFFSET inputName
@@ -548,33 +549,38 @@ copy_name_loop:
 
     ; ----- Append Roll -----
     mov eax, studentCount
-    mov [studentRolls + eax*4], [inputRoll]
+    mov ebx, eax
+    shl ebx, 2                 ; multiply by 4 (size of DWORD)
+    mov ecx, inputRoll
+    mov [studentRolls + ebx], ecx
 
     ; ----- Append GPAs -----
     mov eax, studentCount
+    mov ebx, 40                ; 8 GPAs * 5 bytes each
+    mul ebx                    ; eax = studentCount * 40
     mov edi, OFFSET studentGPAs
-    lea edi, [edi + eax*40]    ; each student occupies 8*5 = 40 bytes
+    add edi, eax               ; edi points to destination for GPAs
 
-    mov esi, OFFSET inputGPA
-    mov ecx, 8
+    mov esi, OFFSET inputGPA   ; source for GPAs
+    mov ecx, 8                 ; 8 semesters
+
 copy_gpa_store_loop:
-    mov edx, 5
+    push ecx
+    mov ecx, 5                 ; copy 5 bytes per GPA (4 chars + null)
 copy_gpa_char_loop:
     mov al, [esi]
     mov [edi], al
-    cmp al, 0
-    je gpa_slot_done
     inc esi
     inc edi
-    dec edx
-    cmp edx, 0
-    jne copy_gpa_char_loop
-    mov BYTE PTR [edi], 0
-    inc edi
-gpa_slot_done:
-    add esi, 1                 ; move to next GPA slot (6 bytes total)
     dec ecx
-    jne copy_gpa_store_loop
+    jnz copy_gpa_char_loop
+    
+    ; Skip to next input GPA slot (we used 5 bytes, but reserved 6)
+    inc esi
+    
+    pop ecx
+    dec ecx
+    jnz copy_gpa_store_loop
 
     ; ----- Increment student count -----
     inc studentCount
@@ -585,7 +591,6 @@ gpa_slot_done:
     call WaitMsg
     ret
 AddStudent ENDP
-    
 
 
 ; ------------------ Search Student by Roll ------------------
