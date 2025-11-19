@@ -494,13 +494,14 @@ AddStudent PROC
     call ReadInt
     mov inputRoll, eax
 
-    ; ----- Read 8 GPAs -----
+    ; ----- Read 8 GPAs with validation -----
     mov esi, OFFSET inputGPA    ; temp buffer for input GPAs
     mov ecx, 8                  ; semester counter
 
 read_gpa_loop:
     push ecx                    ; save semester counter
     
+gpa_validation:
     mov edx, OFFSET enterGPAMsg
     call WriteString
     mov eax, 9
@@ -513,6 +514,19 @@ read_gpa_loop:
     mov ecx, 6                 ; max chars for input including null
     call ReadString
     
+    ; Validate GPA
+    call ValidateGPA
+    cmp eax, 1
+    je gpa_valid
+    
+    ; GPA invalid - show error and retry
+    call CRLF
+    mov edx, OFFSET gpaErrorMsg
+    call WriteString
+    call CRLF
+    jmp gpa_validation
+    
+gpa_valid:
     add esi, 6                 ; move to next GPA buffer (6 bytes each)
     
     pop ecx                    ; restore semester counter
@@ -592,6 +606,74 @@ copy_gpa_char_loop:
     ret
 AddStudent ENDP
 
+; ------------------ GPA Validation Procedure ------------------
+ValidateGPA PROC
+    ; Input: EDX points to GPA string (format: "X.XX")
+    ; Output: EAX = 1 if valid (0.00-4.00), EAX = 0 if invalid
+    
+    push esi
+    push ebx
+    push ecx
+    
+    mov esi, edx
+    
+    ; Check string length (should be 4 characters: "X.XX")
+    call StrLength
+    cmp eax, 4
+    jne invalid_gpa
+    
+    ; Check first character (0-4)
+    mov al, [esi]
+    cmp al, '0'
+    jb invalid_gpa
+    cmp al, '4'
+    ja invalid_gpa
+    
+    ; Check second character (must be '.')
+    mov al, [esi+1]
+    cmp al, '.'
+    jne invalid_gpa
+    
+    ; Check third character (0-9)
+    mov al, [esi+2]
+    cmp al, '0'
+    jb invalid_gpa
+    cmp al, '9'
+    ja invalid_gpa
+    
+    ; Check fourth character (0-9)
+    mov al, [esi+3]
+    cmp al, '0'
+    jb invalid_gpa
+    cmp al, '9'
+    ja invalid_gpa
+    
+    ; Special case: if first digit is '4', decimal part must be ".00"
+    mov al, [esi]   ; first digit
+    cmp al, '4'
+    jne valid_gpa_check
+    
+    ; First digit is 4, check if decimal part is ".00"
+    mov al, [esi+2]
+    cmp al, '0'
+    jne invalid_gpa
+    mov al, [esi+3]
+    cmp al, '0'
+    jne invalid_gpa
+    
+valid_gpa_check:
+    mov eax, 1      ; valid GPA
+    jmp validate_done
+    
+invalid_gpa:
+    mov eax, 0      ; invalid GPA
+    
+validate_done:
+    pop ecx
+    pop ebx
+    pop esi
+    ret
+ValidateGPA ENDP
 
 ; ------------------ Search Student by Roll ------------------
 SearchStudent PROC
