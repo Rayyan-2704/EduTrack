@@ -787,30 +787,30 @@ show_gpa_loop:
     ret
 SearchStudent ENDP
 
-
 ; ------------------ Update Student ------------------
 UpdateStudent PROC
     call Clrscr
     call CRLF
+    
     mov edx, OFFSET enterRollMsg
     call WriteString
     call ReadInt
     mov ebx, eax
 
+    ; Find student by roll number
     mov ecx, studentCount
-    cmp ecx,0
+    cmp ecx, 0
     je update_notfound
 
     mov edi, OFFSET studentRolls
-    xor esi, esi
+    xor esi, esi                    ; ESI = index
 find_update_loop:
     mov eax, [edi]
     cmp eax, ebx
     je update_found
-    add edi,4
+    add edi, 4
     inc esi
-    dec ecx
-    jne find_update_loop
+    loop find_update_loop
 
 update_notfound:
     mov edx, OFFSET notFoundMsg
@@ -820,152 +820,125 @@ update_notfound:
     ret
 
 update_found:
-    ; esi = index
-    ; Update name
+    ; ESI contains the student index
+    mov inputRoll, ebx              ; Store roll for later use
+    
+    ; --- Update Name ---
     mov edx, OFFSET enterNameMsg
     call WriteString
     mov edx, OFFSET inputName
-    mov ecx, LENGTHOF inputName
+    mov ecx, SIZEOF inputName
     call ReadString
 
-    ; find name insertion point for index
-    mov ebx, OFFSET studentNames
+    ; Find the name position for this student
+    mov edi, OFFSET studentNames
     mov ecx, esi
-    cmp ecx,0
-    je update_name_at_zero
-walk_names_upd:
-    ; skip name
-skip_loop_upd:
-    cmp BYTE PTR [ebx],0
-    je start_next_upd
-    inc ebx
-    jmp skip_loop_upd
-start_next_upd:
-    inc ebx
-    dec ecx
-    jne walk_names_upd
+    cmp ecx, 0
+    je update_name_position_found
+skip_names_update:
+    ; Skip to next name
+skip_name_chars:
+    cmp BYTE PTR [edi], 0
+    je next_name_found
+    inc edi
+    jmp skip_name_chars
+next_name_found:
+    inc edi
+    loop skip_names_update
 
-update_name_at_zero:
-    ; overwrite old name with new name (simple approach: write new name over old; this may leave trailing bytes from old longer name)
-    mov edx, OFFSET inputName
-write_new_name_loop:
-    mov al, [edx]
-    mov [ebx], al
+update_name_position_found:
+    ; EDI now points to the current name position
+    ; Copy new name over old name
+    mov esi, OFFSET inputName
+copy_new_name:
+    mov al, [esi]
+    mov [edi], al
+    inc esi
+    inc edi
     cmp al, 0
-    je name_write_done
-    inc edx
-    inc ebx
-    jmp write_new_name_loop
-name_write_done:
+    jne copy_new_name
 
-    ; Update GPAs - overwrite 8 GPAs for this student
-    mov ecx, 8
-    mov esi, OFFSET inputGPA
-    ; read new GPAs from user
+    ; --- Update GPAs ---
+    call CRLF
     mov edx, OFFSET enterGPAMsg
+    call WriteString
+    call CRLF
+    
+    ; Read 8 new GPAs with validation
+    mov esi, OFFSET inputGPA        ; temp buffer for input GPAs
+    mov ecx, 8                      ; semester counter
 
 read_gpa_update_loop:
+    push ecx                        ; save semester counter
+    
+update_gpa_validation:
     mov edx, OFFSET enterGPAMsg
     call WriteString
     mov eax, 9
-    sub eax, ecx
-    ; write semester number (we'll compute differently)
-    ; To print the correct semester number, compute semNo = 9 - ecx
-    mov edx, OFFSET enterGPASuffix
-    ; print prefix previously done; to simplify ask user sequentially
-    ; Ask for semester # in order 1..8
-    ; compute semNo
-    mov eax, 8
-    sub eax, ecx
-    inc eax
-    mov edx, OFFSET enterGPAMsg
-    call WriteString
-    mov eax, eax
+    sub eax, ecx                   ; semester number 1..8
     call WriteDec
     mov edx, OFFSET enterGPASuffix
     call WriteString
 
-    ; read into inputGPA slot
-    ; compute slot offset: (8 - ecx) * 6
-    ; but simpler: append sequentially
-    mov edx, OFFSET inputGPA
-    mov ebx, 6
-    mov eax, 8
-    sub eax, ecx
-    mul ebx             ; eax = slotIndex * 6
-    add edx, eax
-    mov ecx, 6
+    mov edx, esi                   ; buffer for this GPA
+    mov ecx, 6                     ; max chars for input including null
     call ReadString
+    
+    ; Validate GPA
+    call ValidateGPA
+    cmp eax, 1
+    je update_gpa_valid
+    
+    ; GPA invalid - show error and retry
+    call CRLF
+    mov edx, OFFSET gpaErrorMsg
+    call WriteString
+    call CRLF
+    jmp update_gpa_validation
+    
+update_gpa_valid:
+    add esi, 6                     ; move to next GPA buffer (6 bytes each)
+    pop ecx                        ; restore semester counter
+    loop read_gpa_update_loop
 
-    dec ecx
-    jne read_gpa_update_loop
+    ; --- Copy GPAs to main array ---
+    ; Calculate destination GPA address: studentGPAs + index * 40
+    mov eax, esi                   ; ESI still has the student index
+    mov ebx, 40
+    mul ebx                        ; EAX = index * 40
+    mov edi, OFFSET studentGPAs
+    add edi, eax                   ; EDI points to destination GPA block
 
-    ; Now copy GPAs to main GPA array
-    ; compute destination base: studentGPAs + index*40
-    mov eax, esi        ; eax contains previous value but we'll recompute index
-    mov eax, esi        ; reset
-    mov eax, esi
-    ; recompute index from earlier stored esi value? We used esi as counter; we need to store index earlier
-    ; For simplicity, re-find using [studentRolls]
-    mov ebx, [inputRoll]
-    mov ecx, studentCount
-    mov edi, OFFSET studentRolls
-    xor esi, esi
-find_index_update_loop:
-    mov eax, [edi]
-    cmp eax, ebx
-    je index_update_found
-    add edi,4
-    inc esi
-    dec ecx
-    jne find_index_update_loop
-index_update_found:
-    mov eax, esi        ; eax = index
+    ; Copy from inputGPA buffer to studentGPAs array
+    mov esi, OFFSET inputGPA       ; source
+    mov ecx, 8                     ; 8 semesters
 
-    mov ebx, OFFSET studentGPAs
-    mov edx, 40
-    mul edx             ; eax * 40
-    add ebx, eax        ; ebx = destination GPA base
-
-    ; copy from inputGPA buffer to studentGPAs (8 slots)
-    mov esi, OFFSET inputGPA
-    mov edi, ebx
-    mov ecx, 8
-copy_gpa_update_loop:
-    mov edx,5
-copy_gpa_up_char:
+copy_gpas_update:
+    push ecx
+    ; Copy 5 bytes per GPA (4 chars + null terminator)
+    mov ecx, 5
+copy_gpa_bytes:
     mov al, [esi]
     mov [edi], al
-    cmp al,0
-    je gpaup_slot_done
     inc esi
     inc edi
-    dec edx
-    cmp edx,0
-    jne copy_gpa_up_char
-    mov BYTE PTR [edi],0
-    inc edi
-    inc esi ; move past null
-gpaup_slot_done:
-    ; advance input slot to next (assume 6 bytes reserved)
-    ; skip to next null if not already
-    cmp BYTE PTR [esi],0
-    jne skip_to_null
+    loop copy_gpa_bytes
+    
+    ; Skip the extra byte in input buffer (we reserved 6 bytes per GPA)
     inc esi
-skip_to_null:
-    ; move to next slot (approx)
-    ; ensure edi at next 5-byte slot
-    ; we use fixed increments: edi advanced by 5 per slot, so continue
-    dec ecx
-    jne copy_gpa_update_loop
+    
+    pop ecx
+    loop copy_gpas_update
 
-    ; show success
+    ; Show success message
+    call CRLF
     mov edx, OFFSET updateSuccessMsg
     call WriteString
     call CRLF
     call WaitMsg
     ret
 UpdateStudent ENDP
+
 
 
 ; ------------------ Helper routines from original code ------------------
