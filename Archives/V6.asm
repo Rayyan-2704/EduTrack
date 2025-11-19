@@ -496,16 +496,16 @@ AddStudent PROC
 
     ; ----- Read 8 GPAs with validation -----
     mov esi, OFFSET inputGPA    ; temp buffer for input GPAs
-    mov ecx, 8                  ; semester counter
+    mov ecx, 1                  ; semester counter (start from 1)
 
 read_gpa_loop:
     push ecx                    ; save semester counter
+    push esi                    ; save current GPA buffer position
     
-gpa_validation:
+current_semester_validation:
     mov edx, OFFSET enterGPAMsg
     call WriteString
-    mov eax, 9
-    sub eax, ecx               ; semester number 1..8
+    mov eax, ecx                ; semester number 1..8
     call WriteDec
     mov edx, OFFSET enterGPASuffix
     call WriteString
@@ -517,21 +517,23 @@ gpa_validation:
     ; Validate GPA
     call ValidateGPA
     cmp eax, 1
-    je gpa_valid
+    je gpa_valid_current_semester
     
-    ; GPA invalid - show error and retry
+    ; GPA invalid - show error and retry CURRENT semester
     call CRLF
     mov edx, OFFSET gpaErrorMsg
     call WriteString
     call CRLF
-    jmp gpa_validation
+    jmp current_semester_validation
     
-gpa_valid:
+gpa_valid_current_semester:
+    pop esi                     ; restore GPA buffer position
+    pop ecx                     ; restore semester counter
+    
     add esi, 6                 ; move to next GPA buffer (6 bytes each)
-    
-    pop ecx                    ; restore semester counter
-    dec ecx
-    jnz read_gpa_loop
+    inc ecx                    ; move to next semester
+    cmp ecx, 9                 ; check if we've done 8 semesters (1-8)
+    jl read_gpa_loop           ; continue if less than 9
 
 done_read_gpa:
 
