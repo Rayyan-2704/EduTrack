@@ -505,13 +505,21 @@ read_gpa_loop:
     push esi                    ; save current GPA buffer position
     
 current_semester_validation:
+    ; Display current semester prompt
     mov edx, OFFSET enterGPAMsg
     call WriteString
-    mov eax, ecx                ; semester number 1..8
+    pop eax                     ; get semester number from stack temporarily
+    push eax                    ; put it back
     call WriteDec
     mov edx, OFFSET enterGPASuffix
     call WriteString
 
+    ; Read GPA input
+    pop esi                     ; restore GPA buffer position
+    pop ecx                     ; restore semester counter
+    push ecx                    ; save semester counter again
+    push esi                    ; save GPA buffer position again
+    
     mov edx, esi               ; buffer for this GPA
     mov ecx, 6                 ; max chars for input including null
     call ReadString
@@ -535,10 +543,9 @@ gpa_valid_current_semester:
     add esi, 6                 ; move to next GPA buffer (6 bytes each)
     inc ecx                    ; move to next semester
     cmp ecx, 9                 ; check if we've done 8 semesters (1-8)
-    jl read_gpa_loop           ; continue if less than 9
+    jle read_gpa_loop          ; continue if less than or equal to 8
 
 done_read_gpa:
-
     ; ----- Append Name -----
     mov edi, OFFSET studentNames
     mov ecx, studentCount
@@ -609,6 +616,7 @@ copy_gpa_char_loop:
     call WaitMsg
     ret
 AddStudent ENDP
+    
 
 ; ------------------ GPA Validation Procedure ------------------
 ValidateGPA PROC
@@ -866,9 +874,6 @@ copy_new_name:
 
     ; --- Update GPAs ---
     call CRLF
-    mov edx, OFFSET enterGPAMsg
-    call WriteString
-    call CRLF
     
     ; Read 8 new GPAs with validation
     mov esi, OFFSET inputGPA        ; temp buffer for input GPAs
@@ -879,13 +884,21 @@ read_gpa_update_loop:
     push esi                        ; save current GPA buffer position
     
 update_gpa_validation:
+    ; Display current semester prompt
     mov edx, OFFSET enterGPAMsg
     call WriteString
-    mov eax, ecx                    ; semester number 1..8
+    pop eax                         ; get semester number from stack temporarily
+    push eax                        ; put it back
     call WriteDec
     mov edx, OFFSET enterGPASuffix
     call WriteString
 
+    ; Read GPA input
+    pop esi                         ; restore GPA buffer position
+    pop ecx                         ; restore semester counter
+    push ecx                        ; save semester counter again
+    push esi                        ; save GPA buffer position again
+    
     mov edx, esi                   ; buffer for this GPA
     mov ecx, 6                     ; max chars for input including null
     call ReadString
@@ -909,11 +922,10 @@ update_gpa_valid:
     add esi, 6                     ; move to next GPA buffer (6 bytes each)
     inc ecx                        ; move to next semester
     cmp ecx, 9                     ; check if we've done 8 semesters (1-8)
-    jl read_gpa_update_loop        ; continue if less than 9
+    jle read_gpa_update_loop       ; continue if less than or equal to 8
 
     ; --- Copy GPAs to main array ---
     pop eax                         ; Restore student index to EAX
-    push eax                        ; Save it again for safety
     
     ; Calculate destination GPA address: studentGPAs + index * 40
     mov ebx, 40
@@ -941,8 +953,6 @@ copy_gpa_bytes:
     
     pop ecx
     loop copy_gpas_update
-
-    pop eax                         ; Clean up stack
 
     ; Show success message
     call CRLF
