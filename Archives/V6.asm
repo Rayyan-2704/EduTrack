@@ -477,6 +477,7 @@ ViewStudents ENDP
 
 ; ------------------ Add Student ------------------
 ; Option A chosen: manual entry of aludentMsg
+
 AddStudent PROC
     call Clrscr
     mov edx, OFFSET addStudentMsg
@@ -490,12 +491,31 @@ AddStudent PROC
     mov ecx, LENGTHOF inputName
     call ReadString
 
-    ; ----- Read Roll -----
+    ; ----- Read and Validate Roll Number -----
+enter_roll_number:
     mov edx, OFFSET enterRollMsg
     call WriteString
     call ReadInt
     mov inputRoll, eax
 
+    ; Check if roll number already exists
+    push eax                    ; Save the input roll number
+    call CheckDuplicateRoll     ; EAX contains roll to check
+    pop eax                     ; Restore input roll
+    
+    cmp ebx, 1                  ; EBX = 1 means duplicate found
+    je roll_duplicate_found
+    jmp roll_unique
+
+roll_duplicate_found:
+    call CRLF
+    mov edx, OFFSET duplicateRollMsg
+    call WriteString
+    call CRLF
+    call CRLF
+    jmp enter_roll_number       ; Re-enter roll number
+
+roll_unique:
     ; ----- Read 8 GPAs with validation -----
     mov esi, OFFSET inputGPA    ; temp buffer for input GPAs
     mov ecx, 1                  ; semester counter (start from 1)
@@ -616,6 +636,44 @@ copy_gpa_char_loop:
     call WaitMsg
     ret
 AddStudent ENDP
+; ------------------ NEW PROCEDURE: Check Duplicate Roll Number ------------------
+CheckDuplicateRoll PROC
+    ; Input: EAX = Roll number to check
+    ; Output: EBX = 1 if duplicate found, 0 if unique
+    
+    push ecx
+    push edi
+    push eax                    ; Save the roll to check
+    
+    mov ecx, studentCount       ; Number of students to check
+    cmp ecx, 0                  ; If no students, roll is unique
+    je roll_is_unique
+    
+    mov edi, OFFSET studentRolls
+    pop eax                     ; Restore roll to check
+    push eax                    ; Save it again
+    
+check_roll_loop:
+    cmp eax, [edi]             ; Compare with current student's roll
+    je roll_duplicate
+    add edi, 4                 ; Move to next roll
+    loop check_roll_loop
+    
+roll_is_unique:
+    mov ebx, 0                 ; Return 0 = unique
+    pop eax
+    pop edi
+    pop ecx
+    ret
+    
+roll_duplicate:
+    mov ebx, 1                 ; Return 1 = duplicate
+    pop eax
+    pop edi
+    pop ecx
+    ret
+CheckDuplicateRoll ENDP
+
     
 
 ; ------------------ GPA Validation Procedure ------------------
@@ -661,11 +719,10 @@ ValidateGPA PROC
     ja invalid_gpa
     
     ; Special case: if first digit is '4', decimal part must be ".00"
-    mov al, [esi]   ; first digit
+    mov al, [esi]
     cmp al, '4'
     jne valid_gpa_check
     
-    ; First digit is 4, check if decimal part is ".00"
     mov al, [esi+2]
     cmp al, '0'
     jne invalid_gpa
@@ -674,11 +731,11 @@ ValidateGPA PROC
     jne invalid_gpa
     
 valid_gpa_check:
-    mov eax, 1      ; valid GPA
+    mov eax, 1
     jmp validate_done
     
 invalid_gpa:
-    mov eax, 0      ; invalid GPA
+    mov eax, 0
     
 validate_done:
     pop ecx
@@ -686,6 +743,7 @@ validate_done:
     pop esi
     ret
 ValidateGPA ENDP
+
 
 ; ------------------ Search Student by Roll ------------------
 SearchStudent PROC
