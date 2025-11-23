@@ -477,7 +477,6 @@ ViewStudents ENDP
 
 ; ------------------ Add Student ------------------
 ; Option A chosen: manual entry of aludentMsg
-
 AddStudent PROC
     call Clrscr
     mov edx, OFFSET addStudentMsg
@@ -528,20 +527,14 @@ current_semester_validation:
     ; Display current semester prompt
     mov edx, OFFSET enterGPAMsg
     call WriteString
-    pop eax                     ; get semester number from stack temporarily
-    push eax                    ; put it back
+    mov eax, [esp+4]            ; get semester number from stack (ECX is at esp+4)
     call WriteDec
     mov edx, OFFSET enterGPASuffix
     call WriteString
 
     ; Read GPA input
-    pop esi                     ; restore GPA buffer position
-    pop ecx                     ; restore semester counter
-    push ecx                    ; save semester counter again
-    push esi                    ; save GPA buffer position again
-    
-    mov edx, esi               ; buffer for this GPA
-    mov ecx, 6                 ; max chars for input including null
+    mov edx, [esp]              ; get GPA buffer position (ESI is at esp)
+    mov ecx, 6                  ; max chars for input including null
     call ReadString
     
     ; Validate GPA
@@ -560,10 +553,10 @@ gpa_valid_current_semester:
     pop esi                     ; restore GPA buffer position
     pop ecx                     ; restore semester counter
     
-    add esi, 6                 ; move to next GPA buffer (6 bytes each)
-    inc ecx                    ; move to next semester
-    cmp ecx, 9                 ; check if we've done 8 semesters (1-8)
-    jle read_gpa_loop          ; continue if less than or equal to 8
+    add esi, 6                  ; move to next GPA buffer (6 bytes each)
+    inc ecx                     ; move to next semester
+    cmp ecx, 9                  ; check if we've done 8 semesters (1-8)
+    jle read_gpa_loop           ; continue if less than or equal to 8
 
 done_read_gpa:
     ; ----- Append Name -----
@@ -636,6 +629,7 @@ copy_gpa_char_loop:
     call WaitMsg
     ret
 AddStudent ENDP
+
 ; ------------------ NEW PROCEDURE: Check Duplicate Roll Number ------------------
 CheckDuplicateRoll PROC
     ; Input: EAX = Roll number to check
