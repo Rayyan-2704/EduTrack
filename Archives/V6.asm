@@ -939,17 +939,14 @@ update_gpa_validation:
     ; Display current semester prompt
     mov edx, OFFSET enterGPAMsg
     call WriteString
-    pop eax                         ; get semester number from stack temporarily
-    push eax                        ; put it back
+    mov eax, [esp+4]                ; get semester number from stack (ECX is at esp+4)
     call WriteDec
     mov edx, OFFSET enterGPASuffix
     call WriteString
 
     ; Read GPA input
-    pop esi                         ; restore GPA buffer position
-    pop ecx                         ; restore semester counter
-    push ecx                        ; save semester counter again
-    push esi                        ; save GPA buffer position again
+    mov edx, [esp]                  ; get GPA buffer position (ESI is at esp)
+    mov ecx, 6                      ; max chars for input including null
     
     mov edx, esi                   ; buffer for this GPA
     mov ecx, 6                     ; max chars for input including null
@@ -969,7 +966,7 @@ update_gpa_validation:
     
 update_gpa_valid:
     pop esi                        ; restore GPA buffer position
-    pop ecx                        ; restore semester counter
+    pop ecx 
     
     add esi, 6                     ; move to next GPA buffer (6 bytes each)
     inc ecx                        ; move to next semester
