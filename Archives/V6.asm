@@ -38,8 +38,7 @@ INCLUDE Irvine32.inc
               "2. Add New Student Record",13,10,
               "3. Search Student by Roll Number",13,10,
               "4. Update Student Record",13,10,
-              "5. Delete Student Record",13,10,
-              "6. Log Out",13,10,13,10,
+              "5. Log Out",13,10,13,10,
               "Enter your choice: ",0
         return2menu BYTE "Returning to Admin Module Menu...",0
 
@@ -111,10 +110,11 @@ INCLUDE Irvine32.inc
         updateSuccessMsg BYTE "Student record updated successfully!",0
         deleteSuccessMsg BYTE "Student record deleted successfully!",0
         notFoundMsg BYTE "Student not found!",0
-        enterRollMsg BYTE "Enter student Roll (number): ",0
+        enterRollMsg BYTE "Enter student roll number: ",0
         enterNameMsg BYTE "Enter student full name: ",0
         enterGPAMsg BYTE "Enter GPA for semester ",0
         enterGPASuffix BYTE " (format 3.50): ",0
+        duplicateRollMsg BYTE "Error: The entered roll number already exists for another student.",0
 
 .code
 main PROC
@@ -370,8 +370,6 @@ dashboard_menu:
     cmp eax, 4
     je option_update
     cmp eax, 5
-    je option_delete
-    cmp eax, 6
     je option_logout
     jmp dashboard_menu
 
@@ -389,10 +387,6 @@ option_search:
 
 option_update:
     call UpdateStudent
-    jmp dashboard_menu
-
-option_delete:
-    call DeleteStudent
     jmp dashboard_menu
 
 option_logout:
@@ -1074,4 +1068,3 @@ too_short:
 CheckPasswordLength ENDP
 
 END main
-
