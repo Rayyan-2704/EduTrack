@@ -556,7 +556,7 @@ gpa_valid_current_semester:
     add esi, 6                  ; move to next GPA buffer (6 bytes each)
     inc ecx                     ; move to next semester
     cmp ecx, 9                  ; check if we've done 8 semesters (1-8)
-    jle read_gpa_loop           ; continue if less than or equal to 8
+    jl read_gpa_loop           ; continue if less than or equal to 8
 
 done_read_gpa:
     ; ----- Append Name -----
@@ -974,7 +974,7 @@ update_gpa_valid:
     add esi, 6                     ; move to next GPA buffer (6 bytes each)
     inc ecx                        ; move to next semester
     cmp ecx, 9                     ; check if we've done 8 semesters (1-8)
-    jle read_gpa_update_loop       ; continue if less than or equal to 8
+    jl read_gpa_update_loop       ; continue if less than or equal to 8
 
     ; --- Copy GPAs to main array ---
     pop eax                         ; Restore student index to EAX
