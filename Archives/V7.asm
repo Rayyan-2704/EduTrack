@@ -14,7 +14,7 @@ INCLUDE Irvine32.inc
 .data
         ; Startup MsgBox Message
         titleMsg BYTE "COAL Project - Assembly x86",0
-        welcomeMsg BYTE "Welcome to Student Record System!",13,10,13,10,
+        welcomeMsg BYTE "Welcome to Edutrack - Student Record System!",13,10,13,10,
                "Developed by:",13,10,
                "Rayyan Aamir (24K-0687)",13,10,
                "Usaid Khan (24K-0832)",13,10,
@@ -22,7 +22,7 @@ INCLUDE Irvine32.inc
 
         ; Admin Menu Message
         menuMsg BYTE "-----------------------------",13,10,
-                        "STUDENT RECORD SYSTEM",13,10,
+                        "EDUTRACK - STUDENT RECORD SYSTEM",13,10,
                         "ADMIN MODULE",13,10,
                         "-----------------------------",13,10,13,10,
                         "1. Sign In",13,10,
@@ -38,7 +38,8 @@ INCLUDE Irvine32.inc
               "2. Add New Student Record",13,10,
               "3. Search Student by Roll Number",13,10,
               "4. Update Student Record",13,10,
-              "5. Log Out",13,10,13,10,
+              "5. Delete Student Record",13,10,
+              "6. Log Out",13,10,13,10,
               "Enter your choice: ",0
         return2menu BYTE "Returning to Admin Module Menu...",0
 
@@ -53,7 +54,7 @@ INCLUDE Irvine32.inc
         separator BYTE " | ",0
 
         ; Exit Message
-        exitMsg BYTE "Thank you for using Student Record System!",0
+        exitMsg BYTE "Thank you for using EduTrack!",0
 
         ; Admin Details (Hardcoded)
         adminUsernames BYTE "rayyan0687",0, "usaid0832",0, "furqan0766",0
@@ -113,6 +114,10 @@ INCLUDE Irvine32.inc
 
         updateStudentMsg BYTE "-----------------------------",13,10,
                         "UPDATE STUDENT RECORD",13,10,
+                        "-----------------------------",13,10,13,10,0
+
+        deleteStudentMsg BYTE "-----------------------------",13,10,
+                        "DELETE STUDENT RECORD",13,10,
                         "-----------------------------",13,10,13,10,0
 
         addSuccessMsg BYTE "Student added successfully!",0
@@ -379,6 +384,8 @@ dashboard_menu:
     cmp eax, 4
     je option_update
     cmp eax, 5
+    je option_delete
+    cmp eax, 6
     je option_logout
     jmp dashboard_menu
 
@@ -396,6 +403,10 @@ option_search:
 
 option_update:
     call UpdateStudent
+    jmp dashboard_menu
+
+option_delete:
+    call DeleteStudent
     jmp dashboard_menu
 
 option_logout:
@@ -1024,6 +1035,9 @@ UpdateStudent ENDP
 DeleteStudent PROC
     call Clrscr
     call CRLF
+
+    mov edx, OFFSET deleteStudentMsg
+    call WriteString
 
     ; Display header
     mov edx, OFFSET enterRollMsg
