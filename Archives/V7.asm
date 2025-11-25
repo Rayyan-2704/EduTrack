@@ -1019,7 +1019,162 @@ copy_gpa_bytes:
     call WaitMsg
     ret
 UpdateStudent ENDP
+
+; ------------------ Delete Student ------------------
+DeleteStudent PROC
+    call Clrscr
+    call CRLF
+
+    ; Display header
+    mov edx, OFFSET enterRollMsg
+    call WriteString
+    call ReadInt
+    mov ebx, eax               ; EBX = roll number to delete
+
+    ; Find student by roll number
+    mov ecx, studentCount
+    cmp ecx, 0
+    je delete_notfound
+
+    mov edi, OFFSET studentRolls
+    xor esi, esi               ; ESI = index counter (0..n-1)
+
+find_delete_roll_loop:
+    mov eax, [edi]
+    cmp eax, ebx
+    je delete_roll_found
+    add edi, 4
+    inc esi
+    dec ecx
+    jne find_delete_roll_loop
+
+delete_notfound:
+    mov edx, OFFSET notFoundMsg
+    call WriteString
+    call CRLF
+    call WaitMsg
+    ret
+
+delete_roll_found:
+    ; ESI contains the index of the student to delete
+    ; Now we need to shift all subsequent students forward
+
+    ; ----- Delete Name -----
+    ; Find the position of the name to delete
+    mov edi, OFFSET studentNames
+    mov ecx, esi              ; number of names to skip
+    cmp ecx, 0
+    je delete_name_position
     
+skip_to_delete_name:
+    cmp BYTE PTR [edi], 0
+    je found_name_null
+    inc edi
+    jmp skip_to_delete_name
+found_name_null:
+    inc edi
+    dec ecx
+    jne skip_to_delete_name
+
+delete_name_position:
+    ; EDI now points to the start of the name to delete
+    mov ebx, edi              ; EBX = start of current name
+    
+    ; Find the start of the next name
+find_next_name_start:
+    cmp BYTE PTR [edi], 0
+    je found_current_name_end
+    inc edi
+    jmp find_next_name_start
+found_current_name_end:
+    inc edi                   ; EDI now points to start of next name
+    
+    ; Shift all remaining names forward
+    mov ecx, studentCount
+    sub ecx, esi              ; ECX = number of students after this one
+    dec ecx                   ; Subtract 1 since we're deleting current
+    cmp ecx, 0
+    je name_shift_done
+    
+shift_names_loop:
+    ; Copy from EDI (next name) to EBX (current position)
+shift_one_name:
+    mov al, [edi]
+    mov [ebx], al
+    inc edi
+    inc ebx
+    cmp al, 0
+    jne shift_one_name
+    dec ecx
+    jne shift_names_loop
+
+name_shift_done:
+    ; Null-terminate the end
+    mov BYTE PTR [ebx], 0
+
+    ; ----- Delete Roll -----
+    ; Shift all rolls after the deleted one
+    mov edi, OFFSET studentRolls
+    mov eax, esi
+    shl eax, 2                ; multiply index by 4
+    add edi, eax              ; EDI points to roll to delete
+    
+    mov ecx, studentCount
+    sub ecx, esi              ; number of students after this one
+    dec ecx                   ; subtract the one being deleted
+    cmp ecx, 0
+    je roll_shift_done
+
+shift_rolls_loop:
+    mov eax, [edi+4]          ; get next roll
+    mov [edi], eax            ; move it forward
+    add edi, 4
+    loop shift_rolls_loop
+
+roll_shift_done:
+
+    ; ----- Delete GPAs -----
+    ; Each student has 8 GPAs * 5 bytes = 40 bytes
+    mov eax, esi
+    mov ebx, 40
+    mul ebx                   ; EAX = index * 40
+    mov edi, OFFSET studentGPAs
+    add edi, eax              ; EDI points to GPAs to delete
+    
+    mov ecx, studentCount
+    sub ecx, esi              ; number of students after this one
+    dec ecx                   ; subtract the one being deleted
+    cmp ecx, 0
+    je gpa_shift_done
+
+shift_gpas_loop:
+    push ecx
+    mov ecx, 40               ; 40 bytes per student (8 GPAs * 5 bytes)
+    mov esi, edi
+    add esi, 40               ; ESI points to next student's GPAs
+    
+shift_gpa_bytes:
+    mov al, [esi]
+    mov [edi], al
+    inc esi
+    inc edi
+    loop shift_gpa_bytes
+    
+    pop ecx
+    loop shift_gpas_loop
+
+gpa_shift_done:
+    ; ----- Decrement student count -----
+    dec studentCount
+
+    ; Show success message
+    call CRLF
+    mov edx, OFFSET deleteSuccessMsg
+    call WriteString
+    call CRLF
+    call WaitMsg
+    ret
+DeleteStudent ENDP
 
 
 
