@@ -1,0 +1,1250 @@
+; COAL Lab Project - Extended with Add/Update/Delete/Search Student Records
+; Rayyan Aamir | Usaid Khan | Syed M. Furqan
+
+INCLUDE Irvine32.inc
+
+; -------------------------
+; Data Layout Notes
+; - studentNames: contiguous null-terminated strings for each student
+; - studentRolls: DWORD per student
+; - studentGPAs: 8 GPA strings per student. Each GPA stored as 4 chars + null (5 bytes)
+; - studentCount: number of students currently stored
+; -------------------------
+
+.data
+        ; Startup MsgBox Message
+        titleMsg BYTE "COAL Project - Assembly x86",0
+        welcomeMsg BYTE "Welcome to Edutrack - Student Record System!",13,10,13,10,
+               "Developed by:",13,10,
+               "Rayyan Aamir (24K-0687)",13,10,
+               "Usaid Khan (24K-0832)",13,10,
+               "Syed M. Furqan (24K-0766)",0
+
+        ; Admin Menu Message
+        menuMsg BYTE "-----------------------------",13,10,
+                        "EDUTRACK - STUDENT RECORD SYSTEM",13,10,
+                        "ADMIN MODULE",13,10,
+                        "-----------------------------",13,10,13,10,
+                        "1. Sign In",13,10,
+                        "2. Create New Account",13,10,
+                        "3. Exit Program",13,10,13,10,
+                        "Enter your choice: ",0
+
+        ; Admin Dashboard Message
+        dashboardMsg BYTE "-----------------------------",13,10,
+              "ADMIN DASHBOARD",13,10,
+              "-----------------------------",13,10,13,10,
+              "1. View All Student Records",13,10,
+              "2. Add New Student Record",13,10,
+              "3. Search Student by Roll Number",13,10,
+              "4. Update Student Record",13,10,
+              "5. Delete Student Record",13,10,
+              "6. Log Out",13,10,13,10,
+              "Enter your choice: ",0
+        return2menu BYTE "Returning to Admin Module Menu...",0
+
+        ; View Student Record Messages
+        viewStudentsMsg BYTE "-----------------------------",13,10,
+              "VIEWING STUDENT RECORD DETAILS",13,10,
+              "-----------------------------",13,10,13,10,0
+        nameMsg BYTE "Student Name: ",0
+        IDMsg BYTE "Student ID: ",0
+        semesterMsg BYTE "Semester ",0
+        GPAMsg BYTE " GPA: ",0
+        separator BYTE " | ",0
+
+        ; Exit Message
+        exitMsg BYTE "Thank you for using EduTrack!",0
+
+        ; Admin Details (Hardcoded)
+        adminUsernames BYTE "rayyan0687",0, "usaid0832",0, "furqan0766",0
+                                   BYTE 50 DUP(?)        ; additional space for new admin usernames
+        adminPasswords BYTE "ray123",0, "abc789",0, "jfg456",0
+                                   BYTE 50 DUP(?)        ; additional space for new admin passwords
+        adminCount DWORD 3
+
+        ; Student Record Details (Hardcoded)
+        studentNames BYTE "Ali Tariq",0, "Tazeen Ahmed",0, "Hassan Ali",0
+                                 BYTE 1000 DUP(?)  ; extra space for new students
+        studentCount DWORD 3
+
+        studentRolls DWORD 101, 102, 103
+                                 DWORD 20 DUP(?)   ; extra space for new students        
+
+        ; Hardcoded Student GPAs (8 semesters per student)
+        studentGPAs BYTE "3.50",0,"3.60",0,"3.70",0,"3.80",0,"3.90",0,"4.00",0,"3.90",0,"3.80",0
+                                BYTE "3.20",0,"3.30",0,"3.40",0,"3.50",0,"3.60",0,"3.70",0,"3.50",0,"3.60",0
+                                BYTE "3.00",0,"3.10",0,"3.20",0,"3.30",0,"3.40",0,"3.50",0,"3.30",0,"3.20",0
+                                BYTE 100 DUP(?)   ; extra space for new students
+
+        ; Buffers for Sign-In/Create New Account input
+        inputUsername BYTE 20 DUP(?)
+        inputPassword BYTE 20 DUP(?)
+    
+        gpaErrorMsg BYTE "Error: GPA must be between 0.00 and 4.00! Please re-enter.",0
+
+        ; Buffers for Student Input
+        inputName BYTE 80 DUP(?)
+        inputRoll DWORD ?
+        inputGPA BYTE 8*6 DUP(?)    ; each GPA read as up to 5 chars + null; reserve 6 bytes per GPA
+
+        ; Sign-In/Create New Account Messages
+        signinMsg BYTE "-----------------------------",13,10,
+                        "ADMIN SIGN-IN",13,10,
+                        "-----------------------------",0
+        signInSuccess BYTE "Sign In Successful!",0
+        signInFail BYTE "Invalid username or password entered!",0
+
+        newAccMsg BYTE "-----------------------------",13,10,
+                        "CREATE NEW ADMIN ACCOUNT",13,10,
+                        "-----------------------------",0
+        newAccSuccess BYTE "Account created successfully!",0
+        newAccDup BYTE "Account with the username already exists",0
+        passwordShort BYTE "Invalid password (Password must be of 6 characters minimum)",0
+        enterUsername BYTE "Enter username: ",0
+        enterPassword BYTE "Enter password (minimum length = 6): ",0
+
+        addStudentMsg BYTE "-----------------------------",13,10,
+                        "ADD NEW STUDENT RECORD",13,10,
+                        "-----------------------------",13,10,13,10,0
+
+        searchStudentMsg BYTE "-----------------------------",13,10,
+                        "SEARCH STUDENT BY ROLL NUMBER",13,10,
+                        "-----------------------------",13,10,13,10,0
+
+        updateStudentMsg BYTE "-----------------------------",13,10,
+                        "UPDATE STUDENT RECORD",13,10,
+                        "-----------------------------",13,10,13,10,0
+
+        deleteStudentMsg BYTE "-----------------------------",13,10,
+                        "DELETE STUDENT RECORD",13,10,
+                        "-----------------------------",13,10,13,10,0
+
+        addSuccessMsg BYTE "Student added successfully!",0
+        updateSuccessMsg BYTE "Student record updated successfully!",0
+        deleteSuccessMsg BYTE "Student record deleted successfully!",0
+        notFoundMsg BYTE "Student not found!",0
+        enterRollMsg BYTE "Enter student roll number: ",0
+        enterNameMsg BYTE "Enter student full name: ",0
+        enterGPAMsg BYTE "Enter GPA for semester ",0
+        enterGPASuffix BYTE " (format 3.50): ",0
+        duplicateRollMsg BYTE "Error: The entered roll number already exists for another student!",0
+
+.code
+main PROC
+startup:
+        mov ebx, OFFSET titleMsg
+        mov edx, OFFSET welcomeMsg
+        call MsgBox
+
+call AdminMenu
+call ExitProgram
+main ENDP
+
+; ------------------ Admin Menu ------------------
+AdminMenu PROC
+menu_loop:
+        call Clrscr
+        call CRLF
+
+        mov edx, OFFSET menuMsg
+        call WriteString
+        call ReadInt
+
+        cmp eax, 1
+        je option_signin
+        cmp eax, 2
+        je option_createnewacc
+        cmp eax, 3
+        je end_loop
+        jmp menu_loop
+
+        option_signin:
+    call SignIn
+    jmp menu_loop
+
+option_createnewacc:
+    call CreateNewAccount
+    jmp menu_loop
+
+end_loop:
+        ret
+AdminMenu ENDP
+
+
+ExitProgram PROC
+        call CRLF
+        mov edx, OFFSET exitMsg
+        call WriteString
+        exit
+ExitProgram ENDP
+
+; ------------------ SignIn / Accounts ------------------
+SignIn PROC
+        call Clrscr
+        mov edx, OFFSET signinMsg
+        call WriteString
+        call CRLF
+        call CRLF
+
+        mov edx, OFFSET enterUsername
+        call WriteString
+        mov edx, OFFSET inputUsername
+        mov ecx, LENGTHOF inputUsername
+        call ReadString
+
+        mov edx, OFFSET enterPassword
+        call WriteString
+        mov edx, OFFSET inputPassword
+        mov ecx, LENGTHOF inputPassword
+        call ReadString
+
+        mov esi, OFFSET adminUsernames
+        mov edi, OFFSET adminPasswords
+        mov ecx, adminCount
+
+signin_check_loop:
+
+        mov edx, OFFSET inputUsername
+        push esi        ; preserving username pointer
+        call StringCompare
+        pop esi                ; restoring username pointer
+        cmp eax, 0
+        jne moveto_nextadmin
+
+        mov edx, OFFSET inputPassword
+        push esi        ; preserving username pointer
+        push edi        ; preserving password pointer
+        mov esi, edi
+        call StringCompare
+        pop edi                ; restoring password pointer
+        pop esi                ; restoring username pointer
+        cmp eax, 0
+        je signin_success
+
+moveto_nextadmin:
+find_next_username:
+    cmp BYTE PTR [esi], 0
+        je found_username_null
+    inc esi
+    jmp find_next_username
+found_username_null:
+        inc esi
+
+find_next_password:
+        cmp BYTE PTR [edi], 0
+        je found_password_null
+        inc edi
+        jmp find_next_password
+found_password_null:
+        inc edi
+
+        loop signin_check_loop
+        jmp        signin_fail
+
+signin_success:
+        call CRLF
+        mov edx, OFFSET signInSuccess
+        call WriteString
+        call CRLF
+        call WaitMsg
+        call AdminDashboard
+        ret
+
+signin_fail:
+        call CRLF
+        mov edx, OFFSET        signInFail
+        call WriteString
+        call CRLF
+        call WaitMsg
+        ret
+SignIn ENDP
+
+
+StringCompare PROC
+        mov eax, 1
+
+compare_loop:
+        mov al, [edx]
+        mov bl, [esi]
+        cmp al, bl
+        jne not_equal
+        cmp al, 0
+        je equal
+        inc edx
+        inc esi
+        jmp compare_loop
+
+equal:
+        mov eax, 0
+        ret
+
+not_equal:
+        mov eax, 1
+        ret
+stringCompare ENDP
+
+
+CreateNewAccount PROC
+        call Clrscr
+        mov edx, OFFSET newAccMsg
+        call WriteString
+        call CRLF
+        call CRLF
+
+enter_username:
+        mov edx, OFFSET enterUsername
+        call WriteString
+        mov edx, OFFSET inputUsername
+        mov ecx, LENGTHOF inputUsername
+        call ReadString
+
+        mov esi, OFFSET adminUsernames
+        mov ecx, adminCount
+
+check_username_dup:
+        push esi
+        mov edx, OFFSET inputUsername
+        call StringCompare
+        pop esi
+        cmp eax, 0
+        jne next_username
+
+        mov edx, OFFSET newAccDup
+        call WriteString
+        call CRLF
+        call CRLF
+        jmp enter_username
+
+next_username:
+        cmp BYTE PTR [esi], 0
+        je found_username_null
+        inc esi
+        jmp next_username
+
+found_username_null:
+        inc esi
+        loop check_username_dup
+
+enter_password:
+        mov edx, OFFSET enterPassword
+        call WriteString
+        mov edx, OFFSET inputPassword
+
+        mov ecx, LENGTHOF inputPassword
+        call ReadString
+        call CheckPasswordLength
+        cmp eax, 0
+        je add_username_password
+
+        mov edx, OFFSET passwordShort
+        call WriteString
+        call CRLF
+        call CRLF
+        jmp enter_password
+
+add_username_password:
+        mov esi, OFFSET adminUsernames
+        mov edx, OFFSET inputUsername
+        mov ecx, adminCount
+        call AddStringToArray
+
+        mov esi, OFFSET adminPasswords
+        mov edx, OFFSET inputPassword
+        mov ecx, adminCount
+        call AddStringToArray
+
+        inc adminCount
+
+        call CRLF
+        mov edx, OFFSET newAccSuccess
+        call WriteString
+        call CRLF
+        call WaitMsg
+        ret
+CreateNewAccount ENDP
+
+
+; ------------------ Admin Dashboard ------------------
+AdminDashboard PROC
+dashboard_menu:
+    call Clrscr
+    call CRLF
+
+    mov edx, OFFSET dashboardMsg
+    call WriteString
+    call ReadInt
+
+    cmp eax, 1
+    je option_view
+    cmp eax, 2
+    je option_add
+    cmp eax, 3
+    je option_search
+    cmp eax, 4
+    je option_update
+    cmp eax, 5
+    je option_delete
+    cmp eax, 6
+    je option_logout
+    jmp dashboard_menu
+
+option_view:
+    call ViewStudents
+    jmp dashboard_menu
+
+option_add:
+    call AddStudent
+    jmp dashboard_menu
+
+option_search:
+    call SearchStudent
+    jmp dashboard_menu
+
+option_update:
+    call UpdateStudent
+    jmp dashboard_menu
+
+option_delete:
+    call DeleteStudent
+    jmp dashboard_menu
+
+option_logout:
+        call CRLF
+        mov edx, OFFSET return2menu
+        call WriteString
+        call CRLF
+        call WaitMsg
+    ret
+AdminDashboard ENDP
+
+
+; ------------------ View Students ------------------
+ViewStudents PROC
+    call Clrscr
+    call CRLF
+
+    mov edx, OFFSET viewStudentsMsg
+    call WriteString
+
+    mov esi, OFFSET studentNames   ; pointer to first student name
+    mov edi, OFFSET studentRolls   ; pointer to first student roll
+    mov ebx, OFFSET studentGPAs    ; pointer to first student GPA
+    mov ecx, studentCount          ; number of students
+    cmp ecx, 0
+    je no_students
+
+view_loop:
+    mov edx, OFFSET nameMsg
+    call WriteString
+        mov edx, esi
+        call WriteString
+        call CRLF
+
+        mov edx, OFFSET IDMsg
+        call WriteString
+    mov eax, [edi]
+    call WriteDec
+    call CRLF
+
+        push ecx
+    mov ecx, 8
+gpa_loop:
+        mov edx, OFFSET semesterMsg
+        call WriteString
+        mov eax, 9
+        sub eax, ecx
+        call WriteDec
+        mov edx, OFFSET GPAMsg
+        call WriteString
+    mov edx, ebx
+        call WriteString
+    add ebx, 5
+        call CRLF
+    loop gpa_loop
+    call CRLF
+
+        pop ecx
+find_next_studentname:
+    cmp BYTE PTR [esi], 0
+        je found_next
+    inc esi
+    jmp find_next_studentname
+found_next:
+        inc esi
+
+    add edi, 4
+    loop view_loop
+
+    call CRLF
+    call WaitMsg
+    ret
+
+no_students:
+    mov edx, OFFSET notFoundMsg
+    call WriteString
+    call CRLF
+    call WaitMsg
+    ret
+ViewStudents ENDP
+
+
+; ------------------ Add Student ------------------
+; Option A chosen: manual entry of aludentMsg
+AddStudent PROC
+    call Clrscr
+    mov edx, OFFSET addStudentMsg
+    call WriteString
+
+    ; ----- Read Name -----
+    mov edx, OFFSET enterNameMsg
+    call WriteString
+    mov edx, OFFSET inputName
+    mov ecx, LENGTHOF inputName
+    call ReadString
+
+    ; ----- Read and Validate Roll Number -----
+enter_roll_number:
+    mov edx, OFFSET enterRollMsg
+    call WriteString
+    call ReadInt
+    mov inputRoll, eax
+
+    ; Check if roll number already exists
+    push eax                    ; Save the input roll number
+    call CheckDuplicateRoll     ; EAX contains roll to check
+    pop eax                     ; Restore input roll
+    
+    cmp ebx, 1                  ; EBX = 1 means duplicate found
+    je roll_duplicate_found
+    jmp roll_unique
+
+roll_duplicate_found:
+    call CRLF
+    mov edx, OFFSET duplicateRollMsg
+    call WriteString
+    call CRLF
+    call CRLF
+    jmp enter_roll_number       ; Re-enter roll number
+
+roll_unique:
+    ; ----- Read 8 GPAs with validation -----
+    mov esi, OFFSET inputGPA    ; temp buffer for input GPAs
+    mov ecx, 1                  ; semester counter (start from 1)
+
+read_gpa_loop:
+    push ecx                    ; save semester counter
+    push esi                    ; save current GPA buffer position
+    
+current_semester_validation:
+    ; Display current semester prompt
+    mov edx, OFFSET enterGPAMsg
+    call WriteString
+    mov eax, [esp+4]            ; get semester number from stack (ECX is at esp+4)
+    call WriteDec
+    mov edx, OFFSET enterGPASuffix
+    call WriteString
+
+    ; Read GPA input
+    mov edx, [esp]              ; get GPA buffer position (ESI is at esp)
+    mov ecx, 6                  ; max chars for input including null
+    call ReadString
+    
+    ; Validate GPA
+    call ValidateGPA
+    cmp eax, 1
+    je gpa_valid_current_semester
+    
+    ; GPA invalid - show error and retry CURRENT semester
+    call CRLF
+    mov edx, OFFSET gpaErrorMsg
+    call WriteString
+    call CRLF
+    jmp current_semester_validation
+    
+gpa_valid_current_semester:
+    pop esi                     ; restore GPA buffer position
+    pop ecx                     ; restore semester counter
+    
+    add esi, 6                  ; move to next GPA buffer (6 bytes each)
+    inc ecx                     ; move to next semester
+    cmp ecx, 9                  ; check if we've done 8 semesters (1-8)
+    jl read_gpa_loop           ; continue if less than or equal to 8
+
+done_read_gpa:
+    ; ----- Append Name -----
+    mov edi, OFFSET studentNames
+    mov ecx, studentCount
+    cmp ecx, 0
+    je name_insert_point
+    
+skip_names_loop:
+    cmp BYTE PTR [edi], 0
+    je found_null
+    inc edi
+    jmp skip_names_loop
+found_null:
+    inc edi
+    dec ecx
+    jnz skip_names_loop
+
+name_insert_point:
+    mov esi, OFFSET inputName
+copy_name_loop:
+    mov al, [esi]
+    mov [edi], al
+    inc esi
+    inc edi
+    cmp al, 0
+    jne copy_name_loop
+
+    ; ----- Append Roll -----
+    mov eax, studentCount
+    mov ebx, eax
+    shl ebx, 2                 ; multiply by 4 (size of DWORD)
+    mov ecx, inputRoll
+    mov [studentRolls + ebx], ecx
+
+    ; ----- Append GPAs -----
+    mov eax, studentCount
+    mov ebx, 40                ; 8 GPAs * 5 bytes each
+    mul ebx                    ; eax = studentCount * 40
+    mov edi, OFFSET studentGPAs
+    add edi, eax               ; edi points to destination for GPAs
+
+    mov esi, OFFSET inputGPA   ; source for GPAs
+    mov ecx, 8                 ; 8 semesters
+
+copy_gpa_store_loop:
+    push ecx
+    mov ecx, 5                 ; copy 5 bytes per GPA (4 chars + null)
+copy_gpa_char_loop:
+    mov al, [esi]
+    mov [edi], al
+    inc esi
+    inc edi
+    dec ecx
+    jnz copy_gpa_char_loop
+    
+    ; Skip to next input GPA slot (we used 5 bytes, but reserved 6)
+    inc esi
+    
+    pop ecx
+    dec ecx
+    jnz copy_gpa_store_loop
+
+    ; ----- Increment student count -----
+    inc studentCount
+
+    mov edx, OFFSET addSuccessMsg
+    call WriteString
+    call CRLF
+    call WaitMsg
+    ret
+AddStudent ENDP
+
+; ------------------ NEW PROCEDURE: Check Duplicate Roll Number ------------------
+CheckDuplicateRoll PROC
+    ; Input: EAX = Roll number to check
+    ; Output: EBX = 1 if duplicate found, 0 if unique
+    
+    push ecx
+    push edi
+    push eax                    ; Save the roll to check
+    
+    mov ecx, studentCount       ; Number of students to check
+    cmp ecx, 0                  ; If no students, roll is unique
+    je roll_is_unique
+    
+    mov edi, OFFSET studentRolls
+    pop eax                     ; Restore roll to check
+    push eax                    ; Save it again
+    
+check_roll_loop:
+    cmp eax, [edi]             ; Compare with current student's roll
+    je roll_duplicate
+    add edi, 4                 ; Move to next roll
+    loop check_roll_loop
+    
+roll_is_unique:
+    mov ebx, 0                 ; Return 0 = unique
+    pop eax
+    pop edi
+    pop ecx
+    ret
+    
+roll_duplicate:
+    mov ebx, 1                 ; Return 1 = duplicate
+    pop eax
+    pop edi
+    pop ecx
+    ret
+CheckDuplicateRoll ENDP
+
+    
+
+; ------------------ GPA Validation Procedure ------------------
+ValidateGPA PROC
+    ; Input: EDX points to GPA string (format: "X.XX")
+    ; Output: EAX = 1 if valid (0.00-4.00), EAX = 0 if invalid
+    
+    push esi
+    push ebx
+    push ecx
+    
+    mov esi, edx
+    
+    ; Check string length (should be 4 characters: "X.XX")
+    call StrLength
+    cmp eax, 4
+    jne invalid_gpa
+    
+    ; Check first character (0-4)
+    mov al, [esi]
+    cmp al, '0'
+    jb invalid_gpa
+    cmp al, '4'
+    ja invalid_gpa
+    
+    ; Check second character (must be '.')
+    mov al, [esi+1]
+    cmp al, '.'
+    jne invalid_gpa
+    
+    ; Check third character (0-9)
+    mov al, [esi+2]
+    cmp al, '0'
+    jb invalid_gpa
+    cmp al, '9'
+    ja invalid_gpa
+    
+    ; Check fourth character (0-9)
+    mov al, [esi+3]
+    cmp al, '0'
+    jb invalid_gpa
+    cmp al, '9'
+    ja invalid_gpa
+    
+    ; Special case: if first digit is '4', decimal part must be ".00"
+    mov al, [esi]
+    cmp al, '4'
+    jne valid_gpa_check
+    
+    mov al, [esi+2]
+    cmp al, '0'
+    jne invalid_gpa
+    mov al, [esi+3]
+    cmp al, '0'
+    jne invalid_gpa
+    
+valid_gpa_check:
+    mov eax, 1
+    jmp validate_done
+    
+invalid_gpa:
+    mov eax, 0
+    
+validate_done:
+    pop ecx
+    pop ebx
+    pop esi
+    ret
+ValidateGPA ENDP
+
+
+; ------------------ Search Student by Roll ------------------
+SearchStudent PROC
+    call Clrscr
+    call CRLF
+
+    mov edx, OFFSET searchStudentMsg
+    call WriteString
+
+    mov edx, OFFSET enterRollMsg
+    call WriteString
+    call ReadInt
+    mov ebx, eax               ; EBX = searched roll
+
+    mov ecx, studentCount
+    cmp ecx, 0
+    je search_notfound
+
+    mov edi, OFFSET studentRolls
+    xor esi, esi               ; ESI = index counter (0..n-1)
+
+find_roll_loop:
+    mov eax, [edi]
+    cmp eax, ebx
+    je roll_found
+    add edi, 4
+    inc esi
+    dec ecx
+    jne find_roll_loop
+
+search_notfound:
+    mov edx, OFFSET notFoundMsg
+    call WriteString
+    call CRLF
+    call WaitMsg
+    ret
+
+roll_found:
+    ; ESI contains index of the found student
+
+    ; --- Locate name at index ---
+    mov ebx, OFFSET studentNames
+    mov ecx, esi              ; number of names to skip
+    cmp ecx, 0
+    je name_at_zero
+skip_name_loop:
+    ; skip current name (walk to its terminating 0)
+skip_name_char:
+    cmp BYTE PTR [ebx], 0
+    je start_next_name
+    inc ebx
+    jmp skip_name_char
+start_next_name:
+    inc ebx                  ; move to start of next name
+    dec ecx
+    jne skip_name_loop
+
+name_at_zero:
+    ; EBX now points to the student's name
+    mov edx, OFFSET nameMsg
+    call WriteString
+    mov edx, ebx
+    call WriteString
+    call CRLF
+
+    ; --- Display Roll ---
+    mov edx, OFFSET IDMsg
+    call WriteString
+    ; Need the roll value: compute pointer to the found roll DWORD
+    ; (we already had edi pointing at the matched roll in find_roll_loop)
+    ; But edi may have changed; recompute pointer by walking rolls up to index:
+    mov edi, OFFSET studentRolls
+    mov ecx, esi
+walk_rolls_to_index:
+    cmp ecx, 0
+    je roll_pointer_ready
+    add edi, 4
+    dec ecx
+    jmp walk_rolls_to_index
+roll_pointer_ready:
+    mov eax, [edi]
+    call WriteDec
+    call CRLF
+
+    ; --- Display GPAs ---
+    ; Compute GPA base address = OFFSET studentGPAs + index * 40
+    mov eax, esi              ; eax = index
+    imul eax, 40              ; eax = index * 40
+    add eax, OFFSET studentGPAs
+    mov ebx, eax              ; EBX = pointer to first GPA (5 bytes each)
+
+    mov ecx, 8                ; 8 semesters
+    mov esi, ebx              ; ESI = pointer used for printing GPAs
+show_gpa_loop:
+    mov edx, OFFSET semesterMsg
+    call WriteString
+    ; compute semester number: (9 - ecx)  gives 1..8 as loop runs
+    mov eax, 9
+    sub eax, ecx
+    call WriteDec
+
+    mov edx, OFFSET GPAMsg
+    call WriteString
+
+    mov edx, esi
+    call WriteString
+
+    add esi, 5                ; move to next GPA (fixed 5 bytes per GPA)
+    call CRLF
+    loop show_gpa_loop
+
+    call CRLF
+    call WaitMsg
+    ret
+SearchStudent ENDP
+
+; ------------------ Update Student ------------------
+UpdateStudent PROC
+    call Clrscr
+    call CRLF
+
+    mov edx, OFFSET updateStudentMsg
+    call WriteString
+    
+    mov edx, OFFSET enterRollMsg
+    call WriteString
+    call ReadInt
+    mov ebx, eax
+
+    ; Find student by roll number
+    mov ecx, studentCount
+    cmp ecx, 0
+    je update_notfound
+
+    mov edi, OFFSET studentRolls
+    xor esi, esi                    ; ESI = index
+find_update_loop:
+    mov eax, [edi]
+    cmp eax, ebx
+    je update_found
+    add edi, 4
+    inc esi
+    loop find_update_loop
+
+update_notfound:
+    mov edx, OFFSET notFoundMsg
+    call WriteString
+    call CRLF
+    call WaitMsg
+    ret
+
+update_found:
+    ; ESI contains the student index - store it safely
+    push esi                        ; Save student index
+    
+    ; --- Update Name ---
+    mov edx, OFFSET enterNameMsg
+    call WriteString
+    mov edx, OFFSET inputName
+    mov ecx, SIZEOF inputName
+    call ReadString
+
+    ; Find the name position for this student
+    mov edi, OFFSET studentNames
+    pop ecx                         ; Restore student index to ECX
+    push ecx                        ; Save it again
+    cmp ecx, 0
+    je update_name_position_found
+    
+skip_names_update:
+    ; Skip to next name
+skip_name_chars:
+    cmp BYTE PTR [edi], 0
+    je next_name_found
+    inc edi
+    jmp skip_name_chars
+next_name_found:
+    inc edi
+    loop skip_names_update
+
+update_name_position_found:
+    ; EDI now points to the current name position
+    ; Copy new name over old name
+    mov esi, OFFSET inputName
+copy_new_name:
+    mov al, [esi]
+    mov [edi], al
+    inc esi
+    inc edi
+    cmp al, 0
+    jne copy_new_name
+
+    ; --- Update GPAs ---
+    call CRLF
+    
+    ; Read 8 new GPAs with validation
+    mov esi, OFFSET inputGPA        ; temp buffer for input GPAs
+    mov ecx, 1                      ; semester counter (start from 1)
+
+read_gpa_update_loop:
+    push ecx                        ; save semester counter
+    push esi                        ; save current GPA buffer position
+    
+update_gpa_validation:
+    ; Display current semester prompt
+    mov edx, OFFSET enterGPAMsg
+    call WriteString
+    mov eax, [esp+4]                ; get semester number from stack (ECX is at esp+4)
+    call WriteDec
+    mov edx, OFFSET enterGPASuffix
+    call WriteString
+
+    ; Read GPA input
+    mov edx, [esp]                  ; get GPA buffer position (ESI is at esp)
+    mov ecx, 6                      ; max chars for input including null
+    
+    mov edx, esi                   ; buffer for this GPA
+    mov ecx, 6                     ; max chars for input including null
+    call ReadString
+    
+    ; Validate GPA
+    call ValidateGPA
+    cmp eax, 1
+    je update_gpa_valid
+    
+    ; GPA invalid - show error and retry CURRENT semester
+    call CRLF
+    mov edx, OFFSET gpaErrorMsg
+    call WriteString
+    call CRLF
+    jmp update_gpa_validation
+    
+update_gpa_valid:
+    pop esi                        ; restore GPA buffer position
+    pop ecx 
+    
+    add esi, 6                     ; move to next GPA buffer (6 bytes each)
+    inc ecx                        ; move to next semester
+    cmp ecx, 9                     ; check if we've done 8 semesters (1-8)
+    jl read_gpa_update_loop       ; continue if less than or equal to 8
+
+    ; --- Copy GPAs to main array ---
+    pop eax                         ; Restore student index to EAX
+    
+    ; Calculate destination GPA address: studentGPAs + index * 40
+    mov ebx, 40
+    mul ebx                        ; EAX = index * 40
+    mov edi, OFFSET studentGPAs
+    add edi, eax                   ; EDI points to destination GPA block
+
+    ; Copy from inputGPA buffer to studentGPAs array
+    mov esi, OFFSET inputGPA       ; source
+    mov ecx, 8                     ; 8 semesters
+
+copy_gpas_update:
+    push ecx
+    ; Copy 5 bytes per GPA (4 chars + null terminator)
+    mov ecx, 5
+copy_gpa_bytes:
+    mov al, [esi]
+    mov [edi], al
+    inc esi
+    inc edi
+    loop copy_gpa_bytes
+    
+    ; Skip the extra byte in input buffer (we reserved 6 bytes per GPA)
+    inc esi
+    
+    pop ecx
+    loop copy_gpas_update
+
+    ; Show success message
+    call CRLF
+    mov edx, OFFSET updateSuccessMsg
+    call WriteString
+    call CRLF
+    call WaitMsg
+    ret
+UpdateStudent ENDP
+
+; ------------------ Delete Student ------------------
+DeleteStudent PROC
+    call Clrscr
+    call CRLF
+
+    mov edx, OFFSET deleteStudentMsg
+    call WriteString
+
+    ; Display header
+    mov edx, OFFSET enterRollMsg
+    call WriteString
+    call ReadInt
+    mov ebx, eax               ; EBX = roll number to delete
+
+    ; Find student by roll number
+    mov ecx, studentCount
+    cmp ecx, 0
+    je delete_notfound
+
+    mov edi, OFFSET studentRolls
+    xor esi, esi               ; ESI = index counter (0..n-1)
+
+find_delete_roll_loop:
+    mov eax, [edi]
+    cmp eax, ebx
+    je delete_roll_found
+    add edi, 4
+    inc esi
+    dec ecx
+    jne find_delete_roll_loop
+
+delete_notfound:
+    mov edx, OFFSET notFoundMsg
+    call WriteString
+    call CRLF
+    call WaitMsg
+    ret
+
+delete_roll_found:
+    ; ESI contains the index of the student to delete
+    ; Now we need to shift all subsequent students forward
+
+    ; ----- Delete Name -----
+    ; Find the position of the name to delete
+    mov edi, OFFSET studentNames
+    mov ecx, esi              ; number of names to skip
+    cmp ecx, 0
+    je delete_name_position
+    
+skip_to_delete_name:
+    cmp BYTE PTR [edi], 0
+    je found_name_null
+    inc edi
+    jmp skip_to_delete_name
+found_name_null:
+    inc edi
+    dec ecx
+    jne skip_to_delete_name
+
+delete_name_position:
+    ; EDI now points to the start of the name to delete
+    mov ebx, edi              ; EBX = start of current name
+    
+    ; Find the start of the next name
+find_next_name_start:
+    cmp BYTE PTR [edi], 0
+    je found_current_name_end
+    inc edi
+    jmp find_next_name_start
+found_current_name_end:
+    inc edi                   ; EDI now points to start of next name
+    
+    ; Shift all remaining names forward
+    mov ecx, studentCount
+    sub ecx, esi              ; ECX = number of students after this one
+    dec ecx                   ; Subtract 1 since we're deleting current
+    cmp ecx, 0
+    je name_shift_done
+    
+shift_names_loop:
+    ; Copy from EDI (next name) to EBX (current position)
+shift_one_name:
+    mov al, [edi]
+    mov [ebx], al
+    inc edi
+    inc ebx
+    cmp al, 0
+    jne shift_one_name
+    dec ecx
+    jne shift_names_loop
+
+name_shift_done:
+    ; Null-terminate the end
+    mov BYTE PTR [ebx], 0
+
+    ; ----- Delete Roll -----
+    ; Shift all rolls after the deleted one
+    mov edi, OFFSET studentRolls
+    mov eax, esi
+    shl eax, 2                ; multiply index by 4
+    add edi, eax              ; EDI points to roll to delete
+    
+    mov ecx, studentCount
+    sub ecx, esi              ; number of students after this one
+    dec ecx                   ; subtract the one being deleted
+    cmp ecx, 0
+    je roll_shift_done
+
+shift_rolls_loop:
+    mov eax, [edi+4]          ; get next roll
+    mov [edi], eax            ; move it forward
+    add edi, 4
+    loop shift_rolls_loop
+
+roll_shift_done:
+
+    ; ----- Delete GPAs -----
+    ; Each student has 8 GPAs * 5 bytes = 40 bytes
+    mov eax, esi
+    mov ebx, 40
+    mul ebx                   ; EAX = index * 40
+    mov edi, OFFSET studentGPAs
+    add edi, eax              ; EDI points to GPAs to delete
+    
+    mov ecx, studentCount
+    sub ecx, esi              ; number of students after this one
+    dec ecx                   ; subtract the one being deleted
+    cmp ecx, 0
+    je gpa_shift_done
+
+shift_gpas_loop:
+    push ecx
+    mov ecx, 40               ; 40 bytes per student (8 GPAs * 5 bytes)
+    mov esi, edi
+    add esi, 40               ; ESI points to next student's GPAs
+    
+shift_gpa_bytes:
+    mov al, [esi]
+    mov [edi], al
+    inc esi
+    inc edi
+    loop shift_gpa_bytes
+    
+    pop ecx
+    loop shift_gpas_loop
+
+gpa_shift_done:
+    ; ----- Decrement student count -----
+    dec studentCount
+
+    ; Show success message
+    call CRLF
+    mov edx, OFFSET deleteSuccessMsg
+    call WriteString
+    call CRLF
+    call WaitMsg
+    ret
+DeleteStudent ENDP
+
+
+
+; ------------------ Helper routines from original code ------------------
+AddStringToArray PROC
+        mov ebx, 0
+
+find_last_item:
+        cmp ebx, ecx
+        je copy_string                ; copying only when last item is found
+
+next_item:
+        cmp BYTE PTR [esi], 0
+        je move_to_next_item
+        inc esi
+        jmp next_item
+
+move_to_next_item:
+        inc esi
+        inc ebx
+        jmp find_last_item
+
+copy_string:
+        mov al, [edx]
+        mov [esi], al
+        cmp al, 0
+        je copying_done
+        inc esi
+        inc edx
+        jmp copy_string
+        
+copying_done:
+        ret
+AddStringToArray ENDP
+
+
+CheckPasswordLength PROC
+        mov ecx, 0
+        mov esi, edx
+
+character_count:
+        cmp BYTE PTR [esi], 0
+        je check_count
+        inc ecx
+        inc esi
+        jmp character_count
+
+check_count:
+        cmp ecx, 6
+        jb too_short
+        mov eax, 0
+        ret
+
+too_short:
+        mov eax, 1
+        ret
+CheckPasswordLength ENDP
+
+END main
